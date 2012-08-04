@@ -1,0 +1,67 @@
+ro.opengles.version = 131072
+#
+# system.prop for x3
+#
+#
+
+#Common display settings
+ro.sf.lcd_density=320
+ro.hwui.text_cache_width=2048
+ro.hwui.text_cache_height=256
+debug.sf.hw=1
+persist.sys.ui.hw = 1
+windowsmgr.max_events_per_sec = 240
+
+#RIL
+rild.libpath=/system/lib/lge-ril.so
+rild.libargs=-d /dev/ttyACM0
+ro.build.target_ril_platform=ifx
+ro.telephony.ril.v3=signalstrength,skipbrokendatacall
+
+
+#Wi-Fi
+wifi.interface=wlan0
+wifi.supplicant_scan_interval=60
+
+#Audio
+# -----------------------------
+# speaker volume is from 20 to 31
+# this corresponds to -2dB to +8dB
+# -----------------------------
+audio.speaker.voice.0=20
+audio.speaker.voice.1=21
+audio.speaker.voice.2=24
+audio.speaker.voice.3=26
+audio.speaker.voice.4=28
+audio.speaker.voice.5=31
+# -----------------------------
+# earpiece volume is from 20 to 31
+# this corresponds to -2dB to +8dB
+# -----------------------------
+audio.earpiece.voice.0=20
+audio.earpiece.voice.1=21
+audio.earpiece.voice.2=24
+audio.earpiece.voice.3=26
+audio.earpiece.voice.4=28
+audio.earpiece.voice.5=31
+# -----------------------------------
+# headset volume is from 9 to 14
+# this corresponds to -34dB to -19dB
+# ----------------------------------
+audio.headset.voice.0=16
+audio.headset.voice.1=19
+audio.headset.voice.2=22
+audio.headset.voice.3=25
+audio.headset.voice.4=28
+audio.headset.voice.5=31
+
+ro.lge.audio_scenario=SOUNDEXCEPTION
+ro.lge.audio_soundexception=true
+ro.lge.audio_soundprofile=true
+
+#NFC
+debug.nfc.fw_download=true
+debug.nfc.se=false
+ro.nfc.port=I2C
+lge.nfc.fwpatchv13=yes
+
