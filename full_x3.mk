@@ -99,9 +99,9 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
         lights.x3
 
-# Power
-#PRODUCT_PACKAGES += \
-#        power.x3
+# Power HAL
+PRODUCT_PACKAGES += \
+        power.x3
 
 # Audio
 PRODUCT_PACKAGES += \
