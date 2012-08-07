@@ -26,10 +26,10 @@ PRODUCT_PACKAGES := \
 # Files needed for boot image
 PRODUCT_COPY_FILES := \
 	device/htc/endeavoru/ramdisk/init.rc:root/init.rc \
-	device/htc/endeavoru/ramdisk/init.endeavoru.rc:root/init.x3.rc \
-	device/htc/endeavoru/ramdisk/init.usb.rc:root/init.usb.rc \
+	device/htc/endeavoru/ramdisk/init.x3.rc:root/init.x3.rc \
+	device/htc/endeavoru/ramdisk/init.x3.usb.rc:root/init.x3.usb.rc \
 	device/htc/endeavoru/ramdisk/ueventd.rc:root/ueventd.rc \
-	device/htc/endeavoru/ramdisk/ueventd.endeavoru.rc:root/ueventd.x3.rc \
+	device/htc/endeavoru/ramdisk/ueventd.x3.rc:root/ueventd.x3.rc \
 	device/htc/endeavoru/ramdisk/init:root/init
 
 

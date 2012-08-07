@@ -1,0 +1,790 @@
+import /init.lge.rc
+import init.x3.usb.rc
+on early-init
+    mount debugfs debugfs /sys/kernel/debug
+    write /sys/class/firmware/timeout 5
+
+    # for backwards compatibility
+    export EXTERNAL_STORAGE /mnt/sdcard
+    mkdir /mnt/sdcard 0775 system system
+    symlink /mnt/sdcard /sdcard
+
+on init
+    mkdir /mnt/sdcard/external_sd 0000 system system
+# LGE_CHANGE_S yejini.lee@lge.com
+# Begin Immersion changes
+    export VIBE_PIPE_PATH /dev/pipes 
+# End Immersion changes
+# LGE_CHANGE_E yejini.lee@lge.com
+
+on fs
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/APP /system wait ro barrier=1
+# DGMS MC-C05546-1 writeback -> ordered
+    exec /system/bin/e2fsck -p /dev/block/platform/sdhci-tegra.3/by-name/UDA # Apply G1 Guide
+    exec /system/bin/tune2fs -u system -m 2 /dev/block/platform/sdhci-tegra.3/by-name/UDA # Executing tune2fs to reserve some region. It is for memory-full issue.
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/UDA /data wait noatime nosuid nodev barrier=1,nomblk_io_submit,data=ordered,nodelalloc,errors=continue
+    exec /system/bin/e2fsck -p /dev/block/platform/sdhci-tegra.3/by-name/CAC # Apply G1 Guide
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/CAC /cache wait noatime nosuid nodev barrier=1,nomblk_io_submit
+
+# LGE_CHANGE_S apply sensor calibration file from P920
+    mkdir /cal
+    exec /system/bin/e2fsck -p /dev/block/platform/sdhci-tegra.3/by-name/CAL # Apply G1 Guide
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/CAL /cal wait nosuid nodev barrier=1
+    chown root system /cal
+    chmod 0770 /cal
+# LGE_CHANGE_E apply sensor calibration file from P920
+
+# LGE_CHANGE_S Pass CTS
+    chown system sdcard_rw /dev/block/platform/sdhci-tegra.3/by-name/MSC 
+    chmod 0660 /dev/block/platform/sdhci-tegra.3/by-name/MSC ## misc partition
+#   chmod 0666 /dev/block/platform/sdhci-tegra.3/by-name/MSC ## misc partition
+# LGE_CHANGE_E Pass CTS  
+    mkdir /data/dontpanic
+# LGE_CHANGE_S MLT 2012.02.02 request by MLT Porting Guide ver 2.02
+#    chown root log /data/dontpanic
+    chown root system /data/dontpanic
+# LGE_CHANGE_E MLT 2012.02.02 request by MLT Porting Guide ver 2.02
+    chmod 0750 /data/dontpanic
+
+# LGE_CHANGE_S MLT 2012.02.02 request by MLT Porting Guide ver 2.02
+    mkdir /mpt
+    exec /system/bin/e2fsck -p /dev/block/platform/sdhci-tegra.3/by-name/MLT # Apply G1 Guide
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/MLT /mpt wait nosuid nodev barrier=1 data=ordered
+    chown system system /mpt
+    chmod 0775 /mpt
+# LGE_CHANGE_E MLT 2012.02.02 request by MLT Porting Guide ver 2.02
+
+# LGE_CHANGE_S DivXdrm 
+    mkdir /persist-lg
+    exec /system/bin/e2fsck -p /dev/block/platform/sdhci-tegra.3/by-name/DRM
+    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/DRM /persist-lg wait nosuid nodev barrier=1
+    chown system system /persist-lg
+    chmod 0771 /persist-lg
+# LGE_CHANGE_E DivXdrm 
+    
+# LGE_CHANGE_S yejini.lee@lge.com
+# Begin Immersion changes
+    mkdir /dev/pipes 0771 shell shell
+# End Immersion changes
+# LGE_CHANGE_E yejini.lee@lge.com
+
+# gwangsung.kim 2012.01.04 -->
+# Log Service [start]hyeonkuk.jeong@lge.com----------------------
+    mkdir /data/logger 0775 system system
+    chown system system /data/logger
+    chmod 0771 /data/logger
+
+    #LGE_CHANGE_S [mtc eta log device permission]
+    chmod 777 /dev/mtc_eta_log
+    #LGE_CHANGE_S
+
+    # Collect apanic data, free resources and re-arm trigger
+    #copy /proc/apanic_console /data/dontpanic/apanic_console
+    #chown root log /data/dontpanic/apanic_console
+    #chmod 0640 /data/dontpanic/apanic_console
+
+    #copy /proc/apanic_threads /data/dontpanic/apanic_threads
+    #chown root log /data/dontpanic/apanic_threads
+    #chmod 0640 /data/dontpanic/apanic_threads
+
+    #write /proc/apanic_console 1
+
+    # Collect ramconsole data for last kmsg
+    copy /proc/last_kmsg /data/dontpanic/last_kmsg
+    chown root log /data/dontpanic/last_kmsg
+    chmod 0640 /data/dontpanic/last_kmsg
+on boot
+# +++ BRCM
+# Start kernel driver (for BTHID): new location for insmod bthid.ko
+        insmod /system/lib/modules/bthid.ko
+    mkdir /data/misc/bluetooth 0770 bluetooth bluetooth
+# --- BRCM
+    mkdir /data/misc/wifi 0775 wifi radio
+    mkdir /data/misc/wifi/sockets 0770 wifi wifi
+    mkdir /data/misc/dhcp 0770 dhcp dhcp
+    chown dhcp dhcp /data/misc/dhcp
+    mkdir /data/nvcam 0777 system system
+#    chmod 0777 /data/misc/wifi
+
+    # we will remap this as /mnt/sdcard with the sdcard fuse tool
+    mkdir /data/media 0775 media_rw media_rw
+    chown media_rw media_rw /data/media
+
+# 20110602 jooin.woo@lge.com [Wi-Fi] ICS Wi-Fi Driver Upgrade [START]
+# 20110602 mingi.sung@lge.com [Wi-Fi] Set wpa_supplicant's scan interval and Wi-Fi interface name [START]
+#    setprop wifi.supplicant_scan_interval 20
+#    setprop wifi.interface wlan0
+# 20110602 mingi.sung@lge.com [Wi-Fi] Set wpa_supplicant's scan interval and Wi-Fi interface name [END]
+# 20110602 jooin.woo@lge.com [Wi-Fi] ICS Wi-Fi Driver Upgrade [END]
+
+# LGE_CHANGE_S	euikyeom.kim@lge.com SMT Porting
+    insmod /system/lib/modules/tlx251_le.ko "major=245"
+# LGE_CHANGE_E	euikyeom.kim@lge.com SMT Porting
+
+# 20111209 gwangsung.kim@lge.com [ATCOMMAND] [ start ]
+#	chmod 0775 /dev/block/mmcblk0p7 <--> /dev/block/platform/sdhci-tegra.3/by-name/NVA
+    chmod 0777 /dev/block/platform/sdhci-tegra.3/by-name/NVA
+# 20111209 gwangsung.kim@lge.com [ATCOMMAND] [ end ]
+# LGE_CHANGE_S CTS Pass
+    chown system sdcard_rw /dev/block/platform/sdhci-tegra.3/by-name/NVA
+    chmod 0660 /dev/block/platform/sdhci-tegra.3/by-name/NVA ## NV partition
+# LGE_CHANGE_E CTS Pass
+
+# LGE_CHANGE_S [jm1.lee@lge.com] 2012-02-17, for PMCycleTest
+#    chown system system /sys/class/rtc/rtc0/wakealarm
+#    chmod 0660 /sys/class/rtc/rtc0/wakealarm
+# LGE_CHANGE_E [jm1.lee@lge.com] 2012-02-17, for PMCycleTest
+
+# LGE_CHANGE_S [yehan.ahn@lge.com] 2012-02-23, to remove the ghost-finger
+# touch
+    chown system system /sys/devices/virtual/input/lge_touch/keyguard
+# LGE_CHANGE_E [yehan.ahn@lge.com] 
+    
+# bluetooth
+# LG_BTUI : X3_BT_bringup - kukdong.bae@lge.com [S]
+    # UART device - move to ueventd.x3.rc
+    #chmod 0660 /dev/ttyHS2
+    #chown bluetooth bluetooth /dev/ttyHS2
+
+    # Power control interface
+    chmod 0660 /sys/class/rfkill/rfkill0/state
+    chmod 0660 /sys/class/rfkill/rfkill0/type
+    chmod 0660 /sys/class/rfkill/rfkill1/state
+    chmod 0660 /sys/class/rfkill/rfkill1/type
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/type
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill1/state
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill1/type
+    write /sys/class/rfkill/rfkill0/state 0
+
+    # FactoryTest AT command
+    chmod 0660 /sys/devices/platform/bd_address/bdaddr_if
+    chown radio radio /sys/devices/platform/bd_address/bdaddr_if
+
+    # Properties regarding power on
+    setprop service.brcm.bt.btld 0
+    setprop service.brcm.bt.activation 0
+    setprop service.brcm.bt.srv_active 0
+    setprop service.brcm.bt.hcid_active 0
+    setprop sys.settings_secure_version 0
+
+    # High speed settings
+    setprop service.btui.ampstate 0
+# LG_BTUI : X3_BT_bringup - kukdong.bae@lge.com [E]
+
+#NFC Dev. File
+# LGE_CHANGE_S	eddie.yu@lge.com
+    chmod 0666 /dev/pn544
+#    setprop ro.nfc.port I2C 
+# LGE_CHANGE_E	eddie.yu@lge.com
+
+# backlight
+    chown system radio /sys/class/leds/lcd-backlight/brightness
+    chmod 0664 /sys/class/leds/lcd-backlight/brightness
+    chown system radio /sys/class/leds/lcd-backlight/max_brightness
+    chmod 0664 /sys/class/leds/lcd-backlight/max_brightness
+
+# key led
+    chown system radio /sys/class/leds/button-backlight/brightness
+    chmod 0664 /sys/class/leds/button-backlight/brightness
+    chown system radio /sys/class/leds/button-backlight/br_maintain_on
+    chmod 0664 /sys/class/leds/button-backlight/br_maintain_on
+    chown system radio /sys/devices/platform/gpio-keys.0/key_test_mode
+
+# RGB bridge IC(SSD2825)
+    chown system radio /sys/devices/platform/spi_tegra.4/spi4.2/gamma_tuning
+    chown system radio /sys/devices/platform/spi_tegra.4/spi4.2/gamma_saved
+    chown system system /sys/devices/platform/spi_tegra.4/spi4.2/device_id
+    chown system system /sys/devices/platform/spi_tegra.4/spi4.2/mipi_lp
+    chown system system /sys/devices/platform/spi_tegra.4/spi4.2/mipi_hs
+    chown system system /sys/devices/platform/spi_tegra.4/spi4.2/reg_dump
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/gamma_tuning
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/gamma_saved
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/device_id
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/mipi_lp
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/mipi_hs
+    chmod 0660 /sys/devices/platform/spi_tegra.4/spi4.2/reg_dump
+# fuelgauge
+    #chown system radio /sys/devices/platform/tegra-i2c.4/i2c-4/4-0036/state
+    chown system radio /sys/class/power_supply/fuelgauge/device/state	    
+    chown system radio /sys/class/power_supply/charger/device/chgcc_ta	
+	    
+# didim
+    chown system system /sys/devices/nvhost/tegradc.0/smartdimmer/enable
+    chown system system /sys/devices/nvhost/tegradc.0/smartdimmer/aggressiveness
+    chown system system /sys/devices/nvhost/tegradc.0/smartdimmer/phase_in_video
+
+# power
+    chown system system /sys/kernel/tegra_cap/core_cap_level
+    chown system system /sys/kernel/tegra_cap/core_cap_state
+    chown system system /sys/module/cpu_tegra/parameters/cpu_user_cap
+	chown system system /sys/module/cpu_tegra/parameters/force_disable_edp
+
+# BB UART settings
+    chown radio system /dev/ttyHS0
+
+# sangwon.jeon for gyro and accel.
+     chmod 0666 dev/mpu
+     chmod 0666 dev/mpuirq
+     chmod 0666 dev/slaveirq
+     chmod 0666 dev/timerirq
+     
+#PROXIMITY SENSOR
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/enable_ps_sensor
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/enable_ps_sensor
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/enable_als_sensor
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/enable_als_sensor
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/proxidata
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/proxidata
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/luxdata
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/luxdata
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/ps_hysteresis
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/ps_hysteresis
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/ps_threshold
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/ps_threshold
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/run_calibration
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/run_calibration
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/ppcount
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/ppcount
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/default_calibration
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/default_calibration
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/ps_data
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/ps_data
+    chown system system /sys/bus/i2c/drivers/apds990x/0-0039/is_white
+    chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/is_white
+	chown system system /sys/bus/i2c/drivers/apds990x/0-0039/ps_cal_result
+	chmod 0660 /sys/bus/i2c/drivers/apds990x/0-0039/ps_cal_result
+
+# Power management settings
+    write /sys/module/cpu_tegra3/parameters/no_lp 0
+    #write /sys/module/tegra3_emc/parameters/emc_enable 0
+    #write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 1000000
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor interactive
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/cores_states
+    chmod 0644 /sys/devices/system/cpu/cpufreq/interactive/cores_states
+    chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+    chmod 0644 /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+    write /sys/module/cpu_tegra/parameters/force_policy_max Y
+    write /sys/devices/system/cpu/cpufreq/interactive/boost_factor 2
+    write /sys/devices/system/cpu/cpufreq/interactive/sustain_load 80
+    write /sys/module/cpu_tegra3/parameters/auto_hotplug 1
+    write /sys/module/cpuidle/parameters/lp2_in_idle 1
+
+# Interactive dynamic frequecy mode settings
+    write /sys/devices/system/cpu/cpufreq/interactive/go_maxspeed_load 95
+    write /sys/devices/system/cpu/cpufreq/interactive/dynamic_freq_mode 1
+    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 20000
+
+# Power Save for camera preview and recording
+    chown media camera /sys/devices/platform/tegra_camera/power_save_preview
+    chown media camera /sys/devices/platform/tegra_camera/power_save_rec
+
+# Power management for jpeg decode
+    chown media sdcard_rw /sys/devices/nvavp/jpeg_decode
+
+    chown system radio /sys/devices/platform/tegra-i2c.4/i2c-4/4-001c/max77663-rtc.0/enablesmpl
+    chown system radio /sys/devices/platform/tegra-i2c.4/i2c-4/4-001c/max77663-rtc.0/smplcount
+
+# Increase read ahead size of mmc block devices from default(128) to 1MB
+# Reduces power comsuption during video playback from sdcards
+    write /sys/block/mmcblk0/queue/read_ahead_kb 2048
+    write /sys/block/mmcblk1/queue/read_ahead_kb 2048
+
+#File Permission Change for Key Fusing
+	chown radio system /system/bin/oemcrypto_api_test
+	chmod 0775 /system/bin/oemcrypto_api_test
+	chown radio system /sys/firmware/fuse/device_key
+	chmod 0664 /sys/firmware/fuse/device_key
+	chown radio system /sys/firmware/fuse/jtag_disable
+	chmod 0664 /sys/firmware/fuse/jtag_disable
+	chown radio system /sys/firmware/fuse/odm_production_mode
+	chmod 0664 /sys/firmware/fuse/odm_production_mode
+	chown radio system /sys/firmware/fuse/sec_boot_dev_cfg
+	chmod 0664 /sys/firmware/fuse/sec_boot_dev_cfg
+	chown radio system /sys/firmware/fuse/sec_boot_dev_sel
+	chmod 0664 /sys/firmware/fuse/sec_boot_dev_sel
+	chown radio system /sys/firmware/fuse/secure_boot_key
+	chmod 0664 /sys/firmware/fuse/secure_boot_key
+	chown radio system /sys/firmware/fuse/sw_reserved
+	chmod 0664 /sys/firmware/fuse/sw_reserved
+	chown radio system /sys/firmware/fuse/ignore_dev_sel_straps
+	chmod 0664 /sys/firmware/fuse/ignore_dev_sel_straps
+	chown radio system /sys/firmware/fuse/odm_reserved
+	chmod 0664 /sys/firmware/fuse/odm_reserved	
+
+# RIP-13109 : To access NV area, RILD should have group id of 'media_rw' :  byeonggeun.kim@lge.com [START]
+service ril-daemon /system/bin/rild
+   class main
+   socket rild stream 660 root radio
+   socket rild-debug stream 660 radio system
+   user root
+   group radio cache inet misc audio sdcard_rw log media_rw
+# RIP-13109 : To access NV area, RILD should have group id of 'media_rw' : byeonggeun.kim@lge.com [END]
+
+#LGE_RIL_START sabina.park@lge.com
+service rawip_rmnet1 /system/bin/init.rmnet 1
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rawip_rmnet2 /system/bin/init.rmnet 2
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rawip_rmnet3 /system/bin/init.rmnet 3
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+# used to down HSI interfaces on RIL Recovery
+service rmnet1_down /system/bin/init.rmnet-down 1
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rmnet2_down /system/bin/init.rmnet-down 2
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rmnet3_down /system/bin/init.rmnet-down 3
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot 
+#LGE_RIL_END sabina.park@lge.com       
+
+#LGE_CHANGE_S sangwon.jeon@lge.com :: move here from init.rc
+service console /system/bin/sh
+    class core
+    console
+    user system
+    group log
+
+#on property:ro.debuggable=1
+#start console
+#LGE_CHANGE_S sangwon.jeon@lge.com 
+
+#LGE_CHANGE_S	euikyeom.kim@lge.com
+# Begin Immersion changes
+    # TouchSense Kernel Module
+    insmod /system/lib/kmodules/tspdrv.ko
+# End Immersion changes
+#LGE_CHANGE_E	euikyeom.kim@lge.coms
+
+
+#LGE_CHANGE_S [yongkyun.lee@lge.com] 2011-04-13
+#   Daemon for PC Sync    
+service ap_at_command /system/bin/ap_at_command
+    class main
+    user system
+    group system input graphics
+
+# Load WiFi driver
+#    insmod /system/lib/modules/bcmdhd.ko
+
+service wpa_supplicant /system/bin/wpa_supplicant \
+    -Dnl80211 -iwlan0 -puse_p2p_group_interface=1 -e/data/misc/wifi/entropy.bin
+#   we will start as root and wpa_supplicant will switch to user wifi
+#   after setting up the capabilities required for WEXT
+#   user wifi
+#   group wifi inet keystore
+    group system wifi inet
+    socket wpa_wlan0 dgram 660 wifi wifi
+    disabled
+    oneshot
+
+service btld /system/bin/logwrapper /system/bin/btld -pf /system/bin/BCM4330B1_002.001.003.0550.0633.hcd -hb 3000000 -hp /dev/ttyHS2 -lpm 1
+    user root
+    group bluetooth net_bt_admin
+    disabled
+    oneshot
+
+# start btld if soft_onoff is enabled
+on property:service.brcm.bt.soft_onoff=1
+    start btld
+
+# stop btld if soft_onoff is disabled
+on property:service.brcm.bt.soft_onoff=0
+    stop btld
+    
+#STOPSHIP: Remove logwrapper and -d option before production
+service bluetoothd /system/bin/logwrapper /system/bin/bluetoothd -d -n
+    class main
+    socket bluetooth stream 660 bluetooth bluetooth
+    socket dbus_bluetooth stream 660 bluetooth bluetooth
+# init.rc does not yet support applying capabilities, so run as root and
+# let bluetoothd drop uid to bluetooth with the right linux capabilities
+    group bluetooth net_bt_admin misc
+    disabled  
+# --- BRCM  
+
+service dhcpcd_wlan0 /system/bin/dhcpcd -ABKG
+    disabled
+    oneshot
+
+service dhcpcd_p2p /system/bin/dhcpcd -aABKL
+	disabled
+	oneshot
+
+service iprenew_wlan0 /system/bin/dhcpcd -n
+	disabled
+	oneshot
+
+service iprenew_p2p /system/bin/dhcpcd -n
+	disabled
+	oneshot
+
+# create virtual SD card at /mnt/sdcard, based on the /data/media directory
+# deamon will drop to user/group system/media_rw after initializing
+# underlying files in /data/media wil be created with user and group media_rw (1023)
+service sdcard /system/bin/sdcard /data/media 1023 1023
+    class late_start
+
+# bugreport is triggered by the VOLUME-DOWN and VOLUME-UP keys
+service bugreport /system/bin/dumpstate -d -v -o /data/storage/bugreports/bugreport
+    disabled
+    oneshot
+    keycodes 115 114
+
+# LG_BTUI : X3_BT_bringup - kukdong.bae@lge.com [S]
+# for BlueZ working
+#service hciattach /system/bin/brcm_patchram_plus --enable_hci --no2bytes \
+#    --baudrate 3000000 --patchram /system/bin/BCM4330B1_002.001.003.0550.0000_TESTONLY_LGE_X3.hcd  /dev/ttyHS2
+#    user bluetooth
+#    group bluetooth net_bt_admin
+#    disabled
+#    oneshot
+# LG_BTUI : X3_BT_bringup - kukdong.bae@lge.com [E]
+
+# Control modem w_disable pin
+  on boot
+  write /sys/class/gpio/export 61
+
+#LGE_CHANGE_S youngseok.ko 20110621
+# gps permissions
+
+# GPS GPIO Setting - refer gps_gpio.c
+    chown system system /sys/devices/platform/gps_gpio/poweron
+    chown system system /sys/devices/platform/gps_gpio/reset
+#LGE_CHANGE_S neo.shin 20120215 add e-clock gpio
+    chown system system /sys/devices/platform/gps_gpio/eclk
+#LGE_CHANGE_E neo.shin 20120215 add e-clock gpio
+# GPS UART Setting 
+    chown system system /dev/ttyHS1
+# GPS RIL port Setting 
+    chown system system /dev/pts17
+    
+    mkdir /data/gps
+    chmod 770 /data/gps
+    chown system system /data/gps
+    chmod 770 /system/etc/cert/lge.cer
+    chown system system /system/etc/cert/lge.cer
+	chmod 770 /system/etc/hmconfig.txt
+	chown system system /system/etc/hmconfig.txt
+#LGE_CHANGE_E youngseok.ko 20110621
+
+# LGE_CHANGE_S [ch.park@lge.com] 2012-01-04
+    chown audio audio /dev/pts29
+# LGE_CHANGE_E [ch.park@lge.com] 2012-01-04
+
+# LGE_CHANGE_S, [2012-03-05], kkyungho.lee@lge.com add for Widevine Storage
+    chown radio system /cal
+    mkdir /cal/widevine 0770 radio system
+    chmod 0770 /cal/widevine
+    chown radio system /cal/widevine
+# LGE_CHANGE_E
+
+# LGE_CHANGE_S, [2012-04-12], kkyungho.lee@lge.com add for SecureClock
+    mkdir /cal/secclk 0770 system system
+    chmod 0770 /cal/secclk
+    chown system system /cal/secclk
+# LGE_CHANGE_E
+
+# LGE_CHANGE_S, [2012-04-12], kkyungho.lee@lge.com add for Divx
+    mkdir /cal/multimedia 0770 system system
+    chmod 0770 /cal/multimedia
+    chown system system /cal/multimedia
+# LGE_CHANGE_E
+
+
+
+# LGE_CHANGE_S DivXdrm 
+    mkdir /persist-lg/multimedia media divxdrm
+    chmod 0770 /persist-lg/multimedia
+    chown media divxdrm /persist-lg/multimedia
+# LGE_CHANGE_E
+
+# To_Ril-recovery Nvidia_Patch_20111226
+    chown root radio /sys/devices/platform/baseband_xmm_power/xmm_onoff
+
+# Recovery daemon: configure MSC partition
+service recoveryd /system/bin/recoveryd /dev/block/platform/sdhci-tegra.3/by-num/p5
+    disabled
+    class main
+    user root
+    group root
+    oneshot
+
+on property:sys.shutdown.requested=1recovery
+    start recoveryd
+
+#Prepare TF service
+service tf_daemon /system/bin/tf_daemon -storageDir /cal/widevine -d
+    disabled
+    class main
+    user system
+    group shell system
+    oneshot
+
+#Create data directory and start service
+on property:tf.enable=y
+    start tf_daemon
+
+# Enable NvCpuD, and set it to never poll config again
+on boot
+    setprop nvcpud.enabled true
+    setprop nvcpud.config_refresh_ms -1
+
+service nvcpud /system/bin/nvcpud
+    class main
+    user root
+    group root
+
+#LGE_CHANGE_S	euikyeom.kim@lge.com
+# Begin Immersion changes
+# TouchSense Player Service
+service immvibed /system/bin/immvibed
+	class main
+	user shell
+	group shell
+	oneshot
+# End Immersion changes
+
+service charger /charger
+	class charger
+	user root
+	group root
+	oneshot
+#LGE_CHANGE_E	euikyeom.kim@lge.com
+
+#LGE_CHANGE_S sungmin.kwon@lge.com
+service thermald /system/bin/thermald
+	class main
+	user system
+	group system
+#LGE_CHANGE_E sungmin.kwon@lge.com
+
+# 20120209 jm1.lee@lge.com [MHL_CTL] add hdmi daemon for MHL Control [START]
+service hdmid /system/bin/hdmid
+    class core
+    socket hdmid stream 0660 root system graphics
+    user system
+	group system
+# 20120209 jm1.lee@lge.com [MHL_CTL] add hdmi daemon for MHL Control [END]
+
+# 20120131 gunwoo1.kim@lge.com [LogService] service and property definition for logging [START]
+
+on boot
+    chown system system /sys/power/lge_logstart
+    chmod 0660 /sys/power/lge_logstart
+
+service logging_prepare /system/bin/sh /etc/logging_prepare.sh
+	disabled
+	oneshot
+
+on property:persist.service.logging_prepare=1
+	start logging_prepare
+
+on property:persist.service.logging_prepare=0
+	stop logging_prepare
+
+service logging_android /system/bin/sh /etc/logging_android.sh
+	disabled
+
+on property:persist.service.logging_android=1
+	start logging_android
+
+on property:persist.service.logging_android=0
+	stop logging_android
+
+service alogging_main /system/bin/sh /etc/logging_android_apart.sh main
+	disabled
+
+on property:persist.service.alogging_main=1
+	start alogging_main
+
+on property:persist.service.alogging_main=0
+	stop alogging_main
+
+service alogging_system /system/bin/sh /etc/logging_android_apart.sh system
+	disabled
+
+on property:persist.service.alogging_system=1
+	start alogging_system
+
+on property:persist.service.alogging_system=0
+	stop alogging_system
+
+service alogging_radio /system/bin/sh /etc/logging_android_apart.sh radio
+	disabled
+
+on property:persist.service.alogging_radio=1
+	start alogging_radio
+
+on property:persist.service.alogging_radio=0
+	stop alogging_radio
+
+service alogging_events /system/bin/sh /etc/logging_android_apart.sh events
+	disabled
+
+on property:persist.service.alogging_events=1
+	start alogging_events
+
+on property:persist.service.alogging_events=0
+	stop alogging_events
+
+service logging_kernel /system/bin/sh /etc/logging_kernel.sh
+	disabled
+
+on property:persist.service.logging_kernel=1
+	start logging_kernel
+
+on property:persist.service.logging_kernel=0
+	stop logging_kernel
+
+service alogging_kernel /system/bin/sh /etc/logging_kernel_apart.sh
+	disabled
+
+on property:persist.service.alogging_kernel=1
+	start alogging_kernel
+
+on property:persist.service.alogging_kernel=0
+	stop alogging_kernel
+
+# 20120131 gunwoo1.kim@lge.com [LogService] service and property definition for logging [END]
+
+service monkey_test /system/bin/sh /etc/monkey_test.sh
+    disabled
+    oneshot
+
+on property:persist.service.monkey_test=1
+	start monkey_test
+
+on property:persist.service.monkey_test=0
+	stop monkey_test
+
+# LGE_CHANGE_S, [Data_Patch_027] [hwansuk.kang@lge.com], 2011-08-19 <Packet Capture Support in Log Service>
+service logging_packet /system/xbin/tcpdump -i any -p -C 4 -W 25 -Z root -s 0 -w /mnt/sdcard/log/packet.pcap
+	disabled
+	oneshot
+
+on property:persist.service.logging_packet=1
+	start logging_packet
+
+on property:persist.service.logging_packet=0
+	stop logging_packet
+# LGE_CHANGE_E, [Data_Patch_027] [hwansuk.kang@lge.com], 2011-08-19 <Packet Capture Support in Log Service>
+
+# gwangsung.kim 2012.01.04 -->
+# Log Service [start]hyeonkuk.jeong@lge.com----------------------
+# 1. main log
+service logcat-main /system/bin/logcat -v time -b main -f /data/logger/main.log -n 8 -r 4096
+	disabled
+   	oneshot
+on property:persist.service.main.enable=1
+    start logcat-main
+on property:persist.service.main.enable=0
+    stop logcat-main
+
+# 2. system log
+service logcat-system /system/bin/logcat -v time -b system -f /data/logger/system.log -n 4 -r 4096
+	disabled
+    oneshot
+on property:persist.service.system.enable=1
+    start logcat-system
+on property:persist.service.system.enable=0
+    stop logcat-system
+
+# 3. radio log
+service logcat-radio /system/bin/logcat -v time -b radio -f /data/logger/radio.log -n 4 -r 4096
+    disabled
+    oneshot
+on property:persist.service.radio.enable=1
+    start logcat-radio
+on property:persist.service.radio.enable=0
+    stop logcat-radio
+
+# 4. events log
+service logcat-events /system/bin/logcat -v time -b events -f /data/logger/events.log -n 4 -r 4096
+	disabled
+    oneshot
+on property:persist.service.events.enable=1
+    start logcat-events
+on property:persist.service.events.enable=0
+    stop logcat-events
+
+# 5. kernel log
+service logcat-kernel /system/bin/sh /etc/save_kernel_log.sh
+	disabled
+    oneshot
+on property:persist.service.kernel.enable=1
+    start logcat-kernel
+on property:persist.service.kernel.enable=0
+    stop logcat-kernel
+
+# 6. ducati log
+service logcat-ducati /system/bin/syslink_trace_daemon.out -l /data/logger/ducati.log
+	disabled
+	oneshot
+on property:persist.service.ducati.enable=1
+	start logcat-ducati
+on property:persist.service.ducati.enable=0
+	stop logcat-ducati
+
+# Log Service [End]hyeonkuk.jeong@lge.com-------------------------
+# LGE_CHANGE_S, [Data_Patch_027] [hwansuk.kang@lge.com], 2011-08-19 <Packet Capture Support in Log Service>
+service log-packet /system/xbin/tcpdump -i any -p -C 4 -W 25 -Z root -s 0 -w /data/logger/packet.pcap
+	disabled
+	oneshot
+
+on property:persist.service.packet.enable=1
+	start log-packet
+
+on property:persist.service.packet.enable=0
+	stop log-packet
+# LGE_CHANGE_E, [Data_Patch_027] [hwansuk.kang@lge.com], 2011-08-19 <Packet Capture Support in Log Service>
+# gwangsung.kim 2012.01.04 <--
+
+# for LinkBackup
+# ------------------------------------
+service spritebud /system/xbin/spritebud
+    socket spritebud stream 660 root radio
+    class main
+    user root
+    group root
+# ------------------------------------
+
+# [START] 2012-03-25 kyungrae.jo : added daemon for read calibration data from eeprom
+# Camera Sensor EEPROM Data
+service rdlsc /system/xbin/rdlsc
+   user root
+   group root
+   oneshot
+on boot
+   start rdlsc
+# [END] 2012-03-25 kyungrae.jo : added daemon for read calibration data from eeprom
+
+# [START] 2012-05-07 jude84.kim : For Hidden Menu charging test
+chown system system /sys/class/power_supply/battery/temp_control
+chmod 0664 /sys/class/power_supply/battery/temp_control
+# [END] 2012-05-07 jude84.kim : For Hidden Menu charging test
